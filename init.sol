@@ -1,168 +1,113 @@
 // SPDX-License-Identifier: GPL-3.0
-
 pragma solidity >=0.7.0 <0.9.0;
 
-contract Voting {
-    modifier votingActive() {
-        require(block.timestamp <= endVoting, "Voting has ended!");
-        _;
-    }
+contract GymMachineVoting {
+    // Events
+    event GymMachineAdded(string name);
+    event Voted(address indexed voter, string machine);
+    event MachineStateUpdated(string machine, MachineState state);
 
-    modifier votingEnded() {
-        require(block.timestamp > endVoting, "Voting in progress!");
-        _;
-    }
-
-    modifier onlyChairPerson() {
-        require(msg.sender == chairperson, "Unauthorized!");
-        _;
-    }
-
-    error InvalidVote();
-
-    function sort(uint[] memory v) public pure returns (uint[] memory) {
-        uint len = v.length;
-        for (uint i = 0; i < len - 1; i++) {
-            for (uint j = 0; j < len - i - 1; j++) {
-                if (v[j] > v[j + 1]) {
-                    (v[j], v[j + 1]) = (v[j + 1], v[j]);
-                }
-            }
-        }
-        return v;
-    }
-
-    modifier validVote(uint[] memory votes, uint len) {
-        votes = sort(votes);
-        if (votes.length != len) revert InvalidVote();
-
-        for (uint i = 0; i < votes.length; i++)
-            if (proposals[votes[i]].state != State.Active) revert InvalidVote();
-
-        for (uint i = 0; i < votes.length - 1; i++)
-            if (votes[i] == votes[i + 1]) revert InvalidVote();
-        _;
-    }
-
-    event UpdateProposalState(
-        bytes32 indexed projectName,
-        string indexed teamName,
-        State state
-    );
-    event NewVote(address indexed voter, bytes32 indexed token);
-
-    enum State {
+    // Enums and States
+    enum MachineState {
         Active,
-        Inactive,
-        Locked
+        Inactive
+    }
+
+    // Structs
+    struct GymMachine {
+        string name;
+        uint voteCount;
+        MachineState state;
     }
 
     struct Voter {
-        bool voted;
-        bytes32 token;
-        uint[] votes;
+        bool hasVoted;
+        string votedMachine;
     }
 
-    struct Proposal {
-        bytes32 projectName;
-        string teamName;
-        uint voteCount;
-        State state;
-    }
+    // State variables
+    address public manager;
+    uint public endVoting;
 
-    address public chairperson;
-
-    uint endRegister;
-    uint endVoting;
-
+    mapping(string => GymMachine) public machines;
     mapping(address => Voter) public voters;
-    mapping(bytes32 => address) voteTokens;
-    mapping(string => bytes32) projects;
 
-    Proposal[] public proposals;
-
-    uint nrReqVotes;
-
-    constructor(uint argNrReqVotes) {
-        chairperson = msg.sender;
-        endRegister = block.timestamp + 10 days;
-        endVoting = block.timestamp + 20 days;
-        nrReqVotes = argNrReqVotes;
-    }
-
-    function registerProposal(
-        bytes32 projectName,
-        string memory teamName
-    ) external onlyChairPerson {
-        require(block.timestamp <= endRegister, "Registration has ended");
-        require(projects[teamName] == 0, "Team has already register a project");
-        proposals.push(
-            Proposal({
-                projectName: projectName,
-                teamName: teamName,
-                voteCount: 0,
-                state: State.Inactive
-            })
-        );
-        projects[teamName] = projectName;
-    }
-
-    function setProposalState(uint idx, State state) external onlyChairPerson {
+    // Modifiers
+    modifier onlyManager() {
         require(
-            proposals[idx].state != state &&
-                !(proposals[idx].state == State.Active &&
-                    state == State.Inactive),
-            "Invalid state"
+            msg.sender == manager,
+            "Unauthorized: Only manager can perform this action."
         );
-        proposals[idx].state = state;
-        emit UpdateProposalState(
-            proposals[idx].projectName,
-            proposals[idx].teamName,
-            state
-        );
+        _;
     }
 
-    function registerVoter(
-        bytes32 givenToken
-    ) external votingActive returns (bytes32 generatedToken) {
-        generatedToken = keccak256(abi.encodePacked(givenToken, msg.sender));
+    modifier votingActive() {
+        require(block.timestamp <= endVoting, "Voting has ended.");
+        _;
+    }
+
+    // Constructor to initialize the manager and voting period.
+    constructor(uint votingDuration) {
+        manager = msg.sender;
+        endVoting = block.timestamp + votingDuration;
+    }
+
+    // External functions
+    function addMachine(string calldata name) external onlyManager {
+        require(machines[name].voteCount == 0, "Machine already exists.");
+        machines[name] = GymMachine({
+            name: name,
+            voteCount: 0,
+            state: MachineState.Active
+        });
+        emit GymMachineAdded(name);
+    }
+
+    function vote(string calldata machineName) external votingActive {
+        require(!voters[msg.sender].hasVoted, "Voter has already voted.");
         require(
-            voteTokens[generatedToken] == address(0),
-            "Token has been already used!"
+            machines[machineName].state == MachineState.Active,
+            "This machine is not available for voting."
         );
-        voters[msg.sender].token = generatedToken;
-        voters[msg.sender].voted = false;
-        voteTokens[generatedToken] = msg.sender;
+
+        voters[msg.sender].hasVoted = true;
+        voters[msg.sender].votedMachine = machineName;
+        machines[machineName].voteCount += 1;
+
+        emit Voted(msg.sender, machineName);
     }
 
-    function vote(
-        uint[] memory votes,
-        bytes32 token
-    ) external votingActive validVote(votes, nrReqVotes) {
-        require(voteTokens[token] == msg.sender, "Invalid token");
-        require(voters[msg.sender].voted == false, "Voter has already voted!");
-        for (uint i = 0; i < votes.length; i++) {
-            proposals[votes[i]].voteCount += 1;
-            voters[msg.sender].votes.push(votes[i]);
-        }
+    function updateMachineState(
+        string calldata machineName,
+        MachineState state
+    ) external onlyManager {
+        require(machines[machineName].voteCount > 0, "Machine does not exist.");
+        machines[machineName].state = state;
 
-        voters[msg.sender].voted = true;
-        emit NewVote(msg.sender, token);
+        emit MachineStateUpdated(machineName, state);
     }
 
-    function winningProposal()
+    // View functions
+    function getMostUsedMachine()
         public
         view
-        votingEnded
-        onlyChairPerson
-        returns (uint winningProposalId)
+        returns (string memory mostUsedMachine)
     {
-        uint winningVoteCount = 0;
-        for (uint p = 0; p < proposals.length; p++) {
-            if (proposals[p].voteCount > winningVoteCount) {
-                winningVoteCount = proposals[p].voteCount;
-                winningProposalId = p;
+        uint highestVotes = 0;
+        for (uint i = 0; i < machines.length; i++) {
+            if (machines[i].voteCount > highestVotes) {
+                highestVotes = machines[i].voteCount;
+                mostUsedMachine = machines[i].name;
             }
         }
+        return mostUsedMachine;
+    }
+
+    // Pure function example (not directly related to the voting logic)
+    function calculatePercentage(
+        uint voteCount,
+        uint totalVotes
+    ) public pure returns (uint percentage) {
+        return (voteCount * 100) / totalVotes;
     }
 }
