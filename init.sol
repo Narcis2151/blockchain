@@ -30,6 +30,8 @@ contract GymMachineVoting {
     uint public endVoting;
 
     mapping(string => GymMachine) public machines;
+    string[] public machineNames; // Array to store machine names
+
     mapping(address => Voter) public voters;
 
     // Modifiers
@@ -60,6 +62,7 @@ contract GymMachineVoting {
             voteCount: 0,
             state: MachineState.Active
         });
+        machineNames.push(name); // Add name to the array
         emit GymMachineAdded(name);
     }
 
@@ -94,10 +97,11 @@ contract GymMachineVoting {
         returns (string memory mostUsedMachine)
     {
         uint highestVotes = 0;
-        for (uint i = 0; i < machines.length; i++) {
-            if (machines[i].voteCount > highestVotes) {
-                highestVotes = machines[i].voteCount;
-                mostUsedMachine = machines[i].name;
+        for (uint i = 0; i < machineNames.length; i++) {
+            string memory name = machineNames[i];
+            if (machines[name].voteCount > highestVotes) {
+                highestVotes = machines[name].voteCount;
+                mostUsedMachine = name;
             }
         }
         return mostUsedMachine;
