@@ -95,6 +95,10 @@ contract GymVoting is GymMachineManager {
         endVoting = block.timestamp + votingDuration;
     }
 
+    function setEndVoting() public onlyManager {
+        endVoting = block.timestamp;
+    }
+
     function vote(string calldata machineName) public votingActive {
         require(!voters[msg.sender].hasVoted, "Voter has already voted.");
         require(
