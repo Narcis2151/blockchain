@@ -107,6 +107,19 @@ contract GymMachineVoting {
         return mostUsedMachine;
     }
 
+    function getAllMachines()
+        public
+        view
+        returns (GymMachine[] memory allMachines)
+    {
+        GymMachine[] memory machinesArray = new GymMachine[](machineNames.length);
+        for (uint i = 0; i < machineNames.length; i++) {
+            string memory name = machineNames[i];
+            machinesArray[i] = machines[name];
+        }
+        return machinesArray;
+    }
+
     // Pure function example (not directly related to the voting logic)
     function calculatePercentage(
         uint voteCount,
