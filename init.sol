@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.0 <0.9.0;
 
-contract GymMachineVoting {
+contract GymMachineManager {
     // Events
     event GymMachineAdded(string name);
-    event Voted(address indexed voter, string machine);
     event MachineStateUpdated(string machine, MachineState state);
 
     // Enums and States
     enum MachineState {
-        Active,
-        Inactive
+        Inactive,
+        Active
     }
 
     // Structs
@@ -20,19 +19,10 @@ contract GymMachineVoting {
         MachineState state;
     }
 
-    struct Voter {
-        bool hasVoted;
-        string votedMachine;
-    }
-
     // State variables
     address public manager;
-    uint public endVoting;
-
     mapping(string => GymMachine) public machines;
-    string[] public machineNames; // Array to store machine names
-
-    mapping(address => Voter) public voters;
+    string[] public machineNames;
 
     // Modifiers
     modifier onlyManager() {
@@ -43,30 +33,69 @@ contract GymMachineVoting {
         _;
     }
 
-    modifier votingActive() {
-        require(block.timestamp <= endVoting, "Voting has ended.");
-        _;
-    }
-
-    // Constructor to initialize the manager and voting period.
-    constructor(uint votingDuration) {
+    constructor() {
         manager = msg.sender;
-        endVoting = block.timestamp + votingDuration;
     }
 
-    // External functions
-    function addMachine(string calldata name) external onlyManager {
+    function addMachine(string calldata name) public onlyManager {
         require(machines[name].voteCount == 0, "Machine already exists.");
         machines[name] = GymMachine({
             name: name,
             voteCount: 0,
             state: MachineState.Active
         });
-        machineNames.push(name); // Add name to the array
+        machineNames.push(name);
         emit GymMachineAdded(name);
     }
 
-    function vote(string calldata machineName) external votingActive {
+    function updateMachineState(
+        string calldata machineName,
+        MachineState state
+    ) public onlyManager {
+        require(
+            machines[machineName].state != state,
+            "Machine is already in the requested state."
+        );
+        machines[machineName].state = state;
+        emit MachineStateUpdated(machineName, state);
+    }
+
+    function getAllMachines()
+        public
+        view
+        returns (GymMachine[] memory allMachines)
+    {
+        allMachines = new GymMachine[](machineNames.length);
+        for (uint i = 0; i < machineNames.length; i++) {
+            allMachines[i] = machines[machineNames[i]];
+        }
+    }
+}
+
+contract GymVoting is GymMachineManager {
+    // Event
+    event Voted(address indexed voter, string machine);
+
+    // Struct
+    struct Voter {
+        bool hasVoted;
+        string votedMachine;
+    }
+
+    // State variables
+    uint public endVoting;
+    mapping(address => Voter) public voters;
+
+    modifier votingActive() {
+        require(block.timestamp <= endVoting, "Voting has ended.");
+        _;
+    }
+
+    constructor(uint votingDuration) {
+        endVoting = block.timestamp + votingDuration;
+    }
+
+    function vote(string calldata machineName) public votingActive {
         require(!voters[msg.sender].hasVoted, "Voter has already voted.");
         require(
             machines[machineName].state == MachineState.Active,
@@ -80,17 +109,6 @@ contract GymMachineVoting {
         emit Voted(msg.sender, machineName);
     }
 
-    function updateMachineState(
-        string calldata machineName,
-        MachineState state
-    ) external onlyManager {
-        require(machines[machineName].voteCount > 0, "Machine does not exist.");
-        machines[machineName].state = state;
-
-        emit MachineStateUpdated(machineName, state);
-    }
-
-    // View functions
     function getMostUsedMachine()
         public
         view
@@ -105,19 +123,6 @@ contract GymMachineVoting {
             }
         }
         return mostUsedMachine;
-    }
-
-    function getAllMachines()
-        public
-        view
-        returns (GymMachine[] memory allMachines)
-    {
-        GymMachine[] memory machinesArray = new GymMachine[](machineNames.length);
-        for (uint i = 0; i < machineNames.length; i++) {
-            string memory name = machineNames[i];
-            machinesArray[i] = machines[name];
-        }
-        return machinesArray;
     }
 
     // Pure function example (not directly related to the voting logic)
