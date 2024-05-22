@@ -35,6 +35,47 @@ contract GymMachineManager {
 
     constructor() {
         manager = msg.sender;
+        machines["Bench Press"] = GymMachine({
+            name: "Bench Press",
+            voteCount: 6,
+            state: MachineState.Active
+        });
+        machineNames.push("Bench Press");
+
+        machines["Chest Press"] = GymMachine({
+            name: "Chest Press",
+            voteCount: 4,
+            state: MachineState.Active
+        });
+        machineNames.push("Chest Press");
+
+        machines["Leg Press"] = GymMachine({
+            name: "Leg Press",
+            voteCount: 0,
+            state: MachineState.Active
+        });
+        machineNames.push("Leg Press");
+
+        machines["Lat Pulldown"] = GymMachine({
+            name: "Lat Pulldown",
+            voteCount: 5,
+            state: MachineState.Active
+        });
+        machineNames.push("Lat Pulldown");
+
+        machines["Treadmill"] = GymMachine({
+            name: "Treadmill",
+            voteCount: 1,
+            state: MachineState.Active
+        });
+        machineNames.push("Treadmill");
+
+        machines["Leg Extention"] = GymMachine({
+            name: "Leg Extention",
+            voteCount: 2,
+            state: MachineState.Inactive
+        });
+        machineNames.push("Leg Extention");
     }
 
     function addMachine(string calldata name) public onlyManager {
@@ -69,6 +110,7 @@ contract GymMachineManager {
         for (uint i = 0; i < machineNames.length; i++) {
             allMachines[i] = machines[machineNames[i]];
         }
+        return allMachines;
     }
 }
 
